@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.zhang.client.test;
+package com.train.client.test;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -32,9 +32,9 @@ import com.zhang.client.NettyHttpResponseFuture;
 /**
  * @author xianwu.zhang
  */
-public class NettyClientTest {
+public class NettyHttpClientTest {
 
-    @Test
+    //@Test
     public void testGet() throws Exception {
         final String url = "http://www.baidu.com:80";
 
@@ -46,7 +46,7 @@ public class NettyClientTest {
             .connectTimeOutInMilliSecondes(30 * 1000).build();
 
         final NettyHttpRequest request = new NettyHttpRequest();
-        request.header(HttpHeaders.Names.CONTENT_TYPE, "text/json; charset=GBK").uri(url);
+        request.header(HttpHeaders.Names.CONTENT_TYPE.toString(), "text/json; charset=GBK").uri(url);
 
         NettyHttpResponseFuture responseFuture = client.doGet(request);
         NettyHttpResponse response = (NettyHttpResponse) responseFuture.get();
@@ -68,7 +68,7 @@ public class NettyClientTest {
             .connectTimeOutInMilliSecondes(30 * 1000).build();
 
         final NettyHttpRequest request = new NettyHttpRequest();
-        request.header(HttpHeaders.Names.CONTENT_TYPE, "text/json; charset=GBK").uri(postUrl)
+        request.header(HttpHeaders.Names.CONTENT_TYPE.toString(), "text/json; charset=GBK").uri(postUrl)
             .content(postContent, null);
 
         NettyHttpResponseFuture responseFuture = client.doPost(request);

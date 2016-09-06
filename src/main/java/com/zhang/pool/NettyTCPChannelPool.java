@@ -1,18 +1,4 @@
-/*
- * Copyright 2014 The LightNettyClient Project
- *
- * The Light netty client Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
+
 package com.zhang.pool;
 
 import io.netty.bootstrap.Bootstrap;
@@ -26,8 +12,6 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.http.HttpClientCodec;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -47,17 +31,22 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.zhang.client.NettyHttpResponseFuture;
+import com.zhang.client.NettyTCPRequest;
+import com.zhang.client.NettyTCPResponseFuture;
 import com.zhang.handler.AdditionalChannelInitializer;
-import com.zhang.handler.NettyHttpChannelPoolHandler;
-import com.zhang.util.NettyHttpResponseFutureUtil;
+
+import com.zhang.handler.NettyTCPChannelPoolHandler;
+
+import com.zhang.util.NettyTCPResponseFutureUtil;
 
 /**
- * @author xianwu.zhang
+ * 
+ * @author ryan
+ *
  */
-public class NettyChannelPool {
+public class NettyTCPChannelPool {
 	private static final Logger logger = Logger
-			.getLogger(NettyChannelPool.class.getName());
+			.getLogger(NettyTCPChannelPool.class.getName());
 
 	// channel pools per route
 	private ConcurrentMap<String, LinkedBlockingQueue<Channel>> routeToPoolChannels;
@@ -113,7 +102,7 @@ public class NettyChannelPool {
 	 *            user defined {@link EventLoopGroup}
 	 */
 	@SuppressWarnings("unchecked")
-	public NettyChannelPool(Map<String, Integer> maxPerRoute,
+	public NettyTCPChannelPool(Map<String, Integer> maxPerRoute,
 			int connectTimeOutInMilliSecondes, int maxIdleTimeInMilliSecondes,
 			boolean forbidForceConnect,
 			AdditionalChannelInitializer additionalChannelInitializer,
@@ -137,17 +126,11 @@ public class NettyChannelPool {
 						ch.pipeline().addLast("log",
 								new LoggingHandler(LogLevel.INFO));
 
-						ch.pipeline().addLast(
-								HttpClientCodec.class.getSimpleName(),
-								new HttpClientCodec());
-						if (null != NettyChannelPool.this.additionalChannelInitializer) {
-							NettyChannelPool.this.additionalChannelInitializer
+					
+						if (null != NettyTCPChannelPool.this.additionalChannelInitializer) {
+							NettyTCPChannelPool.this.additionalChannelInitializer
 									.initChannel(ch);
 						}
-
-						ch.pipeline().addLast(
-								HttpObjectAggregator.class.getSimpleName(),
-								new HttpObjectAggregator(1048576));
 
 						ch.pipeline()
 								.addLast(
@@ -155,13 +138,13 @@ public class NettyChannelPool {
 										new IdleStateHandler(
 												0,
 												0,
-												NettyChannelPool.this.maxIdleTimeInMilliSecondes,
+												NettyTCPChannelPool.this.maxIdleTimeInMilliSecondes,
 												TimeUnit.MILLISECONDS));
 
 						ch.pipeline().addLast(
-								NettyHttpChannelPoolHandler.class.getSimpleName(),
-								new NettyHttpChannelPoolHandler(
-										NettyChannelPool.this));
+								NettyTCPChannelPoolHandler.class.getSimpleName(),
+								new NettyTCPChannelPoolHandler(
+										NettyTCPChannelPool.this));
 					}
 
 				});
@@ -205,12 +188,13 @@ public class NettyChannelPool {
 	 * @throws IOException
 	 * @throws Exception
 	 */
-	public NettyHttpResponseFuture sendRequest(InetSocketAddress route,
-			final HttpRequest request) throws InterruptedException, IOException {
-		final NettyHttpResponseFuture responseFuture = new NettyHttpResponseFuture();
+	public NettyTCPResponseFuture sendRequest(InetSocketAddress route,
+			final NettyTCPRequest request) throws InterruptedException, IOException {
+		final NettyTCPResponseFuture responseFuture = new NettyTCPResponseFuture();
 		//策略1：首先从池中获取连接（调用LinkedBlockingQueue.pool()，不等待，获取不到立即返回null）,
 		//如果获取不到连接，则进入第二种策略
 		if (sendRequestUsePooledChannel(route, request, responseFuture, false)) {
+		
 			return responseFuture;
 		}
 		
@@ -233,7 +217,7 @@ public class NettyChannelPool {
 	 * @param channel
 	 */
 	public void returnChannel(Channel channel) {
-		if (NettyHttpResponseFutureUtil.getForceConnect(channel)) {
+		if (NettyTCPResponseFutureUtil.getForceConnect(channel)) {
 			return;
 		}
 		InetSocketAddress route = (InetSocketAddress) channel.remoteAddress();
@@ -278,9 +262,9 @@ public class NettyChannelPool {
 		InetSocketAddress route = (InetSocketAddress) channel.remoteAddress();
 		String key = getKey(route);
 
-		NettyHttpResponseFutureUtil.cancel(channel, cause);
+		NettyTCPResponseFutureUtil.cancel(channel, cause);
 
-		if (!NettyHttpResponseFutureUtil.getForceConnect(channel)) {
+		if (!NettyTCPResponseFutureUtil.getForceConnect(channel)) {
 			LinkedBlockingQueue<Channel> poolChannels = routeToPoolChannels
 					.get(key);
 			if (poolChannels.remove(channel)) {
@@ -301,7 +285,7 @@ public class NettyChannelPool {
 	 * @throws InterruptedException
 	 */
 	private boolean sendRequestUsePooledChannel(InetSocketAddress route,
-			final HttpRequest request, NettyHttpResponseFuture responseFuture,
+			final NettyTCPRequest request, NettyTCPResponseFuture responseFuture,
 			boolean isWaiting) throws InterruptedException {
 		LinkedBlockingQueue<Channel> poolChannels = getPoolChannels(getKey(route));
 		Channel channel = poolChannels.poll();
@@ -323,21 +307,22 @@ public class NettyChannelPool {
 		}
 
 		logger.log(Level.INFO, channel + " reuse");
-		NettyHttpResponseFutureUtil.attributeResponse(channel, responseFuture);
+		System.out.println( channel + " reuse");
+		NettyTCPResponseFutureUtil.attributeResponse(channel, responseFuture);
 
-		channel.writeAndFlush(request).addListener(
+		channel.writeAndFlush(request.getContent()).addListener(
 				ChannelFutureListener.CLOSE_ON_FAILURE);
 		return true;
 	}
 
 	private boolean sendRequestUseNewChannel(final InetSocketAddress route,
-			final HttpRequest request,
-			final NettyHttpResponseFuture responseFuture, boolean forceConnect) {
+			final NettyTCPRequest request,
+			final NettyTCPResponseFuture responseFuture, boolean forceConnect) {
 		ChannelFuture future = createChannelFuture(route, forceConnect);
 		if (null != future) {
-			NettyHttpResponseFutureUtil.attributeResponse(future.channel(),
+			NettyTCPResponseFutureUtil.attributeResponse(future.channel(),
 					responseFuture);
-			NettyHttpResponseFutureUtil.attributeRoute(future.channel(), route);
+			NettyTCPResponseFutureUtil.attributeRoute(future.channel(), route);
 			future.addListener(new ChannelFutureListener() {
 
 				@Override
@@ -364,7 +349,7 @@ public class NettyChannelPool {
 									}
 
 								});
-						future.channel().writeAndFlush(request)
+						future.channel().writeAndFlush(request.getContent())
 								.addListener(CLOSE_ON_FAILURE);
 					}
 					// 如果future的isSuccess返回false，则说明新建连接失败，需要恢复信号量；
@@ -374,10 +359,10 @@ public class NettyChannelPool {
 										+ " connect failed, exception: "
 										+ future.cause());
 
-						NettyHttpResponseFutureUtil.cancel(future.channel(),
+						NettyTCPResponseFutureUtil.cancel(future.channel(),
 								future.cause());
 						//不属于forcecreate 类型的channel 需要释放信号量
-						if (!NettyHttpResponseFutureUtil.getForceConnect(future
+						if (!NettyTCPResponseFutureUtil.getForceConnect(future
 								.channel())) {
 							releaseCreatePerRoute(future.channel());
 						}
@@ -392,7 +377,7 @@ public class NettyChannelPool {
 
 	//释放信号量
 	public void releaseCreatePerRoute(Channel channel) {
-		InetSocketAddress route = NettyHttpResponseFutureUtil.getRoute(channel);
+		InetSocketAddress route = NettyTCPResponseFutureUtil.getRoute(channel);
 		getAllowCreatePerRoute(getKey(route)).release();
 	}
 
@@ -457,7 +442,7 @@ public class NettyChannelPool {
 			ChannelFuture connectFuture = clientBootstrap.connect(
 					route.getHostName(), route.getPort());
 			if (null != connectFuture) {
-				NettyHttpResponseFutureUtil.attributeForceConnect(
+				NettyTCPResponseFutureUtil.attributeForceConnect(
 						connectFuture.channel(), forceConnect);
 			}
 			return connectFuture;

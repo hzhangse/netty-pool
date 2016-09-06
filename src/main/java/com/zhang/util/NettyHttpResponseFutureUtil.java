@@ -80,7 +80,7 @@ public class NettyHttpResponseFutureUtil {
 
     public static boolean headerContainConnectionClose(Channel channel) {
         NettyHttpResponseFuture responseFuture = getResponse(channel);
-        return HttpHeaders.Values.CLOSE.equalsIgnoreCase(responseFuture.getResponseBuilder()
+        return HttpHeaders.Values.CLOSE.toString().equalsIgnoreCase(responseFuture.getResponseBuilder()
             .getPendingResponse().headers().get(HttpHeaders.Names.CONNECTION));
     }
 
